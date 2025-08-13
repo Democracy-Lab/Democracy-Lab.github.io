@@ -1,143 +1,110 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <title>Democracy Lab — Project Sites</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <style>
-    :root { --max: 1100px; }
-    body { font-family: Arial, Helvetica, sans-serif; margin: 0; background:#0e1116; color:#e6edf3; }
-    header { padding: 24px; text-align:center; }
-    header h1 { margin: 0 0 8px; font-size: 28px; }
-    header p { margin: 0; opacity:.8 }
-    .container { max-width: var(--max); margin: 0 auto; padding: 16px 24px 48px; }
-    .toolbar { display:flex; gap:12px; align-items:center; margin-bottom:16px; flex-wrap:wrap; }
-    input[type="search"] { flex:1; padding:10px 12px; border-radius:10px; border:1px solid #30363d; background:#0d1117; color:#e6edf3; }
-    select { padding:10px 12px; border-radius:10px; border:1px solid #30363d; background:#0d1117; color:#e6edf3; }
-    .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:16px; }
-    .card { background:#0d1117; border:1px solid #30363d; border-radius:14px; padding:16px; display:flex; flex-direction:column; gap:8px; }
-    .card h3 { margin:0; font-size:18px; }
-    .meta { font-size:12px; opacity:.8 }
-    .links a { text-decoration:none; color:#67b7ff; margin-right:10px; }
-    footer { text-align:center; padding:24px; opacity:.7; }
-    .empty { text-align:center; padding:40px; opacity:.8 }
-  </style>
-</head>
-<body>
-  <header>
-    <h1>Democracy Lab — Project Sites</h1>
-    <p>Auto-listing of organization repositories that publish with GitHub Pages.</p>
-  </header>
+<script>
+  // ---- CONFIG ----
+  const ORG = 'Democracy-Lab';
+  const ORG_PAGES_BASE = 'https://democracy-lab.github.io'; // base org pages host
 
-  <div class="container">
-    <div class="toolbar">
-      <input id="q" type="search" placeholder="Search repositories… (name or description)" />
-      <select id="sort">
-        <option value="updated">Sort: Recently updated</option>
-        <option value="name">Sort: Name (A→Z)</option>
-      </select>
-    </div>
+  // Fetch all org repos (handles pagination if >100)
+  async function fetchAllRepos(url = `https://api.github.com/orgs/${ORG}/repos?per_page=100&type=public`) {
+    const all = [];
+    while (url) {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`GitHub API: ${res.status} ${res.statusText}`);
+      const page = await res.json();
+      all.push(...page);
+      // parse Link header for pagination
+      const link = res.headers.get('Link');
+      const next = link && link.split(',').find(s => s.includes('rel="next"'));
+      url = next ? next.split(';')[0].trim().slice(1, -1) : null;
+    }
+    return all;
+  }
 
-    <div id="grid" class="grid"></div>
-    <div id="empty" class="empty" style="display:none;">No matches.</div>
-  </div>
+  // Construct org Pages URL for a repo
+  function pagesUrl(repo) {
+    if (repo.name.toLowerCase() === `${ORG.toLowerCase()}.github.io`) {
+      return `${ORG_PAGES_BASE}/`;
+    }
+    return `${ORG_PAGES_BASE}/${encodeURIComponent(repo.name)}/`;
+  }
 
-  <footer>Built from the public GitHub API • Last refreshed client-side</footer>
+  function fmtDate(iso) {
+    try { return new Date(iso).toLocaleString(); } catch { return iso; }
+  }
 
-  <script>
-    // ---- CONFIG ----
-    const ORG = 'Democracy-Lab';
-    const ORG_PAGES_BASE = 'https://democracy-lab.github.io'; // lowercased host is fine
+  function render(list) {
+    const grid = document.getElementById('grid');
+    const empty = document.getElementById('empty');
+    grid.innerHTML = '';
+    if (!list.length) { empty.style.display = ''; return; }
+    empty.style.display = 'none';
 
-    // Fetch all org repos (handles pagination if >100)
-    async function fetchAllRepos(url = `https://api.github.com/orgs/${ORG}/repos?per_page=100&type=public`) {
-      const all = [];
-      while (url) {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`GitHub API: ${res.status} ${res.statusText}`);
-        const page = await res.json();
-        all.push(...page);
-        // parse Link header for pagination
-        const link = res.headers.get('Link');
-        const next = link && [...link.split(',')].find(s => s.includes('rel="next"'));
-        url = next ? next.split(';')[0].trim().slice(1, -1) : null;
-      }
-      return all;
+    for (const r of list) {
+      const site = pagesUrl(r);
+
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML = `
+        <h3>
+          <a href="${site}" target="_blank" rel="noopener" style="color:#67b7ff;text-decoration:none;">
+            ${r.name}
+          </a>
+        </h3>
+        <div class="meta">${r.description ? r.description : ''}</div>
+        <div class="meta">Updated: ${fmtDate(r.updated_at)}</div>
+        <div class="links">
+          <a href="${site}" target="_blank" rel="noopener">View site</a>
+          <a href="${r.html_url}" target="_blank" rel="noopener">Repo</a>
+        </div>
+      `;
+
+      // Make the whole card open the site when clicked (but not when clicking an inner link)
+      card.style.cursor = 'pointer';
+      card.addEventListener('click', (e) => {
+        if (!(e.target instanceof HTMLAnchorElement)) {
+          window.open(site, '_blank', 'noopener');
+        }
+      });
+
+      grid.appendChild(card);
+    }
+  }
+
+  function filterSort(repos) {
+    const q = document.getElementById('q').value.toLowerCase().trim();
+    const sort = document.getElementById('sort').value;
+
+    let list = repos;
+    if (q) {
+      list = repos.filter(r =>
+        (r.name && r.name.toLowerCase().includes(q)) ||
+        (r.description && r.description.toLowerCase().includes(q))
+      );
     }
 
-    // Convert repo → Pages URL (works for org project pages)
-    function pagesUrl(repo) {
-      // org root site is <org>.github.io; project sites are under /<repo>
-      if (repo.name.toLowerCase() === `${ORG.toLowerCase()}.github.io`) {
-        return `${ORG_PAGES_BASE}/`;
-      }
-      return `${ORG_PAGES_BASE}/${encodeURIComponent(repo.name)}/`;
+    if (sort === 'name') {
+      list.sort((a,b) => a.name.localeCompare(b.name));
+    } else {
+      list.sort((a,b) => new Date(b.updated_at) - new Date(a.updated_at));
     }
+    render(list);
+  }
 
-    function fmtDate(iso) {
-      try { return new Date(iso).toLocaleString(); } catch { return iso; }
+  (async function init() {
+    try {
+      const repos = await fetchAllRepos();
+      // Only show repos with Pages enabled OR the org root repo
+      const withPages = repos.filter(r =>
+        r.has_pages || r.name.toLowerCase() === `${ORG.toLowerCase()}.github.io`
+      );
+      window.__REPOS__ = withPages;
+      filterSort(withPages);
+
+      document.getElementById('q').addEventListener('input', () => filterSort(window.__REPOS__));
+      document.getElementById('sort').addEventListener('change', () => filterSort(window.__REPOS__));
+    } catch (err) {
+      document.getElementById('grid').innerHTML =
+        `<div class="empty">Error loading list: ${err.message}</div>`;
     }
+  })();
+</script>
 
-    function render(list) {
-      const grid = document.getElementById('grid');
-      const empty = document.getElementById('empty');
-      grid.innerHTML = '';
-      if (!list.length) { empty.style.display = ''; return; }
-      empty.style.display = 'none';
-
-      for (const r of list) {
-        const card = document.createElement('div');
-        card.className = 'card';
-        card.innerHTML = `
-          <h3>${r.name}</h3>
-          <div class="meta">${r.description ? r.description : ''}</div>
-          <div class="meta">Updated: ${fmtDate(r.updated_at)}</div>
-          <div class="links">
-            <a href="${pagesUrl(r)}" target="_blank" rel="noopener">View site</a>
-            <a href="${r.html_url}" target="_blank" rel="noopener">Repo</a>
-          </div>
-        `;
-        grid.appendChild(card);
-      }
-    }
-
-    function filterSort(repos) {
-      const q = document.getElementById('q').value.toLowerCase().trim();
-      const sort = document.getElementById('sort').value;
-
-      let list = repos;
-      if (q) {
-        list = repos.filter(r =>
-          (r.name && r.name.toLowerCase().includes(q)) ||
-          (r.description && r.description.toLowerCase().includes(q))
-        );
-      }
-
-      if (sort === 'name') {
-        list.sort((a,b) => a.name.localeCompare(b.name));
-      } else {
-        list.sort((a,b) => new Date(b.updated_at) - new Date(a.updated_at));
-      }
-      render(list);
-    }
-
-    (async function init() {
-      try {
-        const repos = await fetchAllRepos();
-        // Only show repos with Pages enabled OR the org root repo
-        const withPages = repos.filter(r =>
-          r.has_pages || r.name.toLowerCase() === `${ORG.toLowerCase()}.github.io`
-        );
-        window.__REPOS__ = withPages;
-        filterSort(withPages);
-
-        document.getElementById('q').addEventListener('input', () => filterSort(window.__REPOS__));
-        document.getElementById('sort').addEventListener('change', () => filterSort(window.__REPOS__));
-      } catch (err) {
-        document.getElementById('grid').innerHTML =
-          `<div class="empty">Error loading list: ${err.message}</div>`;
-      }
-    })();
-  </script>
-</body>
-</html>
