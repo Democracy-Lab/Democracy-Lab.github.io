@@ -1,35 +1,36 @@
 <script>
-  // ---- CONFIG ----
+  // ===== Configuration =====
   const ORG = 'Democracy-Lab';
-  const ORG_PAGES_BASE = 'https://democracy-lab.github.io'; // base org pages host
+  const ORG_PAGES_BASE = 'https://democracy-lab.github.io';
+  const SHOW_ALL = true;        // true = show all public repos immediately; false = only those with Pages
+  const AUTO_REFRESH_MS = 120000; // 2 minutes; set to 0 to disable auto-refresh
 
-  // Fetch all org repos (handles pagination if >100)
-  async function fetchAllRepos(url = `https://api.github.com/orgs/${ORG}/repos?per_page=100&type=public`) {
+  // Build the expected Pages URL for a repo (works for org project pages)
+  function pagesUrl(repoName) {
+    if (repoName.toLowerCase() === `${ORG.toLowerCase()}.github.io`) return `${ORG_PAGES_BASE}/`;
+    return `${ORG_PAGES_BASE}/${encodeURIComponent(repoName)}/`;
+  }
+
+  // Fetch all public repos with pagination; bust caches aggressively
+  async function fetchAllRepos(url = `https://api.github.com/orgs/${ORG}/repos?per_page=100&type=public&ts=${Date.now()}`) {
     const all = [];
     while (url) {
-      const res = await fetch(url);
+      const res = await fetch(url, {
+        cache: 'no-store',
+        headers: { 'Accept': 'application/vnd.github+json' }
+      });
       if (!res.ok) throw new Error(`GitHub API: ${res.status} ${res.statusText}`);
       const page = await res.json();
       all.push(...page);
-      // parse Link header for pagination
+
       const link = res.headers.get('Link');
       const next = link && link.split(',').find(s => s.includes('rel="next"'));
-      url = next ? next.split(';')[0].trim().slice(1, -1) : null;
+      url = next ? next.split(';')[0].trim().slice(1, -1) + `&ts=${Date.now()}` : null;
     }
     return all;
   }
 
-  // Construct org Pages URL for a repo
-  function pagesUrl(repo) {
-    if (repo.name.toLowerCase() === `${ORG.toLowerCase()}.github.io`) {
-      return `${ORG_PAGES_BASE}/`;
-    }
-    return `${ORG_PAGES_BASE}/${encodeURIComponent(repo.name)}/`;
-  }
-
-  function fmtDate(iso) {
-    try { return new Date(iso).toLocaleString(); } catch { return iso; }
-  }
+  function fmtDate(iso) { try { return new Date(iso).toLocaleString(); } catch { return iso; } }
 
   function render(list) {
     const grid = document.getElementById('grid');
@@ -39,29 +40,35 @@
     empty.style.display = 'none';
 
     for (const r of list) {
-      const site = pagesUrl(r);
+      const live = !!r.has_pages || r.name.toLowerCase() === `${ORG.toLowerCase()}.github.io`;
+      const site = pagesUrl(r.name);
 
       const card = document.createElement('div');
       card.className = 'card';
+      if (!live) card.style.opacity = 0.6;
+
       card.innerHTML = `
         <h3>
-          <a href="${site}" target="_blank" rel="noopener" style="color:#67b7ff;text-decoration:none;">
+          <a href="${live ? site : r.html_url}" target="_blank" rel="noopener"
+             style="color:#67b7ff;text-decoration:none;">
             ${r.name}
           </a>
         </h3>
         <div class="meta">${r.description ? r.description : ''}</div>
         <div class="meta">Updated: ${fmtDate(r.updated_at)}</div>
         <div class="links">
-          <a href="${site}" target="_blank" rel="noopener">View site</a>
+          ${live
+            ? `<a href="${site}" target="_blank" rel="noopener">View site</a>`
+            : `<span class="meta">Not deployed yet</span>`}
           <a href="${r.html_url}" target="_blank" rel="noopener">Repo</a>
         </div>
       `;
 
-      // Make the whole card open the site when clicked (but not when clicking an inner link)
+      // Make the whole card open (site if live, else repo) unless a link was clicked
       card.style.cursor = 'pointer';
       card.addEventListener('click', (e) => {
         if (!(e.target instanceof HTMLAnchorElement)) {
-          window.open(site, '_blank', 'noopener');
+          window.open(live ? site : r.html_url, '_blank', 'noopener');
         }
       });
 
@@ -73,38 +80,57 @@
     const q = document.getElementById('q').value.toLowerCase().trim();
     const sort = document.getElementById('sort').value;
 
-    let list = repos;
+    let list = repos.slice();
+    if (!SHOW_ALL) {
+      list = list.filter(r => r.has_pages || r.name.toLowerCase() === `${ORG.toLowerCase()}.github.io`);
+    }
     if (q) {
-      list = repos.filter(r =>
+      list = list.filter(r =>
         (r.name && r.name.toLowerCase().includes(q)) ||
         (r.description && r.description.toLowerCase().includes(q))
       );
     }
+    if (sort === 'name') list.sort((a,b) => a.name.localeCompare(b.name));
+    else list.sort((a,b) => new Date(b.updated_at) - new Date(a.updated_at));
 
-    if (sort === 'name') {
-      list.sort((a,b) => a.name.localeCompare(b.name));
-    } else {
-      list.sort((a,b) => new Date(b.updated_at) - new Date(a.updated_at));
-    }
     render(list);
   }
 
-  (async function init() {
+  async function loadAndRender() {
+    const btn = document.getElementById('refreshBtn');
+    if (btn) btn.disabled = true;
+
     try {
       const repos = await fetchAllRepos();
-      // Only show repos with Pages enabled OR the org root repo
-      const withPages = repos.filter(r =>
-        r.has_pages || r.name.toLowerCase() === `${ORG.toLowerCase()}.github.io`
-      );
-      window.__REPOS__ = withPages;
-      filterSort(withPages);
-
-      document.getElementById('q').addEventListener('input', () => filterSort(window.__REPOS__));
-      document.getElementById('sort').addEventListener('change', () => filterSort(window.__REPOS__));
+      window.__REPOS__ = repos;
+      filterSort(repos);
     } catch (err) {
       document.getElementById('grid').innerHTML =
         `<div class="empty">Error loading list: ${err.message}</div>`;
+    } finally {
+      if (btn) btn.disabled = false;
     }
+  }
+
+  function addRefreshButtonOnce() {
+    if (document.getElementById('refreshBtn')) return;
+    const toolbar = document.querySelector('.toolbar');
+    const btn = document.createElement('button');
+    btn.id = 'refreshBtn';
+    btn.textContent = 'Refresh';
+    btn.style.cssText =
+      'padding:10px 12px;border-radius:10px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;cursor:pointer;';
+    btn.addEventListener('click', loadAndRender);
+    toolbar.appendChild(btn);
+  }
+
+  (function start() {
+    addRefreshButtonOnce();
+    loadAndRender();
+    document.getElementById('q').addEventListener('input', () => filterSort(window.__REPOS__ || []));
+    document.getElementById('sort').addEventListener('change', () => filterSort(window.__REPOS__ || []));
+    if (AUTO_REFRESH_MS > 0) setInterval(loadAndRender, AUTO_REFRESH_MS);
   })();
 </script>
+
 
