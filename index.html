@@ -12,13 +12,13 @@
     header p { margin: 0; opacity:.8 }
     .container { max-width: var(--max); margin: 0 auto; padding: 16px 24px 48px; }
     .toolbar { display:flex; gap:12px; align-items:center; margin-bottom:16px; flex-wrap:wrap; }
-    input[type="search"] { flex:1; padding:10px 12px; border-radius:10px; border:1px solid #d0d7de; background:#ffffff; color:#0d1117; }
-    select { padding:10px 12px; border-radius:10px; border:1px solid #d0d7de; background:#ffffff; color:#0d1117; }
+    input[type="search"] { flex:1; padding:10px 12px; border-radius:10px; border:1px solid #30363d; background:#0d1117; color:#e6edf3; }
+    select { padding:10px 12px; border-radius:10px; border:1px solid #30363d; background:#0d1117; color:#e6edf3; }
     .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:16px; }
-    .card { background:#ffffff; border:1px solid #d0d7de; border-radius:14px; padding:16px; display:flex; flex-direction:column; gap:8px; }
+    .card { background:#ffffff; border:1px solid #30363d; border-radius:14px; padding:16px; display:flex; flex-direction:column; gap:8px; }
     .card h3 { margin:0; font-size:18px; }
     .meta { font-size:12px; opacity:.8 }
-    .links a { text-decoration:none; color:#0969da; margin-right:10px; }
+    .links a { text-decoration:none; color:#67b7ff; margin-right:10px; }
     footer { text-align:center; padding:24px; opacity:.7; }
     .empty { text-align:center; padding:40px; opacity:.8 }
   </style>
@@ -54,20 +54,20 @@
   const AUTO_REFRESH_MS=120000;
 
   function pagesUrl(name){
-    return name.toLowerCase()===\`\${ORG.toLowerCase()}.github.io\`
-      ? \`\${ORG_PAGES_BASE}/\`
-      : \`\${ORG_PAGES_BASE}/\${encodeURIComponent(name)}/\`;
+    return name.toLowerCase()===`${ORG.toLowerCase()}.github.io`
+      ? `${ORG_PAGES_BASE}/`
+      : `${ORG_PAGES_BASE}/${encodeURIComponent(name)}/`;
   }
 
-  async function fetchAllRepos(url=\`https://api.github.com/orgs/\${ORG}/repos?per_page=100&type=public&ts=\${Date.now()}\`){
+  async function fetchAllRepos(url=`https://api.github.com/orgs/${ORG}/repos?per_page=100&type=public&ts=${Date.now()}`){
     const all=[];
     while(url){
       const res=await fetch(url,{cache:'no-store',headers:{Accept:'application/vnd.github+json'}});
-      if(!res.ok) throw new Error(\`GitHub API: \${res.status} \${res.statusText}\`);
+      if(!res.ok) throw new Error(`GitHub API: ${res.status} ${res.statusText}`);
       all.push(...await res.json());
       const link=res.headers.get('Link');
       const next=link && link.split(',').find(s=>s.includes('rel="next"'));
-      url=next? next.split(';')[0].trim().slice(1,-1)+\`&ts=\${Date.now()}\` : null;
+      url=next? next.split(';')[0].trim().slice(1,-1)+`&ts=${Date.now()}` : null;
     }
     return all;
   }
@@ -83,19 +83,19 @@
     if(empty) empty.style.display='none';
 
     list.forEach(r=>{
-      const live=!!r.has_pages || r.name.toLowerCase()===\`\${ORG.toLowerCase()}.github.io\`;
+      const live=!!r.has_pages || r.name.toLowerCase()===`${ORG.toLowerCase()}.github.io`;
       const site=pagesUrl(r.name);
       const card=document.createElement('div');
       card.className='card';
       if(!live) card.style.opacity=0.6;
-      card.innerHTML=\`
-        <h3><a href="\${live?site:r.html_url}" target="_blank" rel="noopener" style="color:#0969da;text-decoration:none;">\${r.name}</a></h3>
-        <div class="meta">\${r.description??''}</div>
-        <div class="meta">Updated: \${fmt(r.updated_at)}</div>
+      card.innerHTML=`
+        <h3><a href="${live?site:r.html_url}" target="_blank" rel="noopener" style="color:#67b7ff;text-decoration:none;">${r.name}</a></h3>
+        <div class="meta">${r.description??''}</div>
+        <div class="meta">Updated: ${fmt(r.updated_at)}</div>
         <div class="links">
-          \${live?\`<a href="\${site}" target="_blank" rel="noopener">View site</a>\`:\`<span class="meta">Not deployed yet</span>\`}
-          <a href="\${r.html_url}" target="_blank" rel="noopener">Repo</a>
-        </div>\`;
+          ${live?`<a href="${site}" target="_blank" rel="noopener">View site</a>`:`<span class="meta">Not deployed yet</span>`}
+          <a href="${r.html_url}" target="_blank" rel="noopener">Repo</a>
+        </div>`;
       card.style.cursor='pointer';
       card.addEventListener('click',e=>{
         if(!(e.target instanceof HTMLAnchorElement)){
@@ -109,7 +109,7 @@
   function filterSort(repos){
     const qEl=el('q'), sortEl=el('sort');
     let list=repos.slice();
-    if(!SHOW_ALL) list=list.filter(r=>r.has_pages||r.name.toLowerCase()===\`\${ORG.toLowerCase()}.github.io\`);
+    if(!SHOW_ALL) list=list.filter(r=>r.has_pages||r.name.toLowerCase()===`${ORG.toLowerCase()}.github.io`);
     const q=(qEl?.value||'').toLowerCase().trim();
     if(q){
       list=list.filter(r=>
@@ -132,7 +132,7 @@
     }catch(err){
       console.error(err);
       const grid=el('grid');
-      if(grid) grid.innerHTML=\`<div class="empty">Error loading list: \${err.message}</div>\`;
+      if(grid) grid.innerHTML=`<div class="empty">Error loading list: ${err.message}</div>`;
     }finally{
       if(btn) btn.disabled=false;
     }
@@ -145,7 +145,7 @@
     const btn=document.createElement('button');
     btn.id='refreshBtn';
     btn.textContent='Refresh';
-    btn.style.cssText='padding:10px 12px;border-radius:10px;border:1px solid #d0d7de;background:#ffffff;color:#0d1117;cursor:pointer;';
+    btn.style.cssText='padding:10px 12px;border-radius:10px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;cursor:pointer;';
     btn.addEventListener('click', loadAndRender);
     toolbar.appendChild(btn);
   }
@@ -161,4 +161,3 @@
   </script>
 </body>
 </html>
-
