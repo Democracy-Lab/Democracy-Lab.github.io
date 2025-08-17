@@ -12,8 +12,8 @@
     header p { margin: 0; opacity:.8 }
     .container { max-width: var(--max); margin: 0 auto; padding: 16px 24px 48px; }
     .toolbar { display:flex; gap:12px; align-items:center; margin-bottom:16px; flex-wrap:wrap; }
-    input[type="search"] { flex:1; padding:10px 12px; border-radius:10px; border:1px solid #30363d; background:#0d1117; color:#e6edf3; }
-    select { padding:10px 12px; border-radius:10px; border:1px solid #30363d; background:#0d1117; color:#e6edf3; }
+    input[type="search"] { flex:1; padding:10px 12px; border-radius:10px; border:1px solid #30363d; background:#ffffff; color:#e6edf3; }
+    select { padding:10px 12px; border-radius:10px; border:1px solid #30363d; background:#ffffff; color:#e6edf3; }
     .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:16px; }
     .card { background:#ffffff; border:1px solid #30363d; border-radius:14px; padding:16px; display:flex; flex-direction:column; gap:8px; }
     .card h3 { margin:0; font-size:18px; }
@@ -145,7 +145,7 @@
     const btn=document.createElement('button');
     btn.id='refreshBtn';
     btn.textContent='Refresh';
-    btn.style.cssText='padding:10px 12px;border-radius:10px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;cursor:pointer;';
+    btn.style.cssText='padding:10px 12px;border-radius:10px;border:1px solid #30363d;background:#ffffff;color:#e6edf3;cursor:pointer;';
     btn.addEventListener('click', loadAndRender);
     toolbar.appendChild(btn);
   }
